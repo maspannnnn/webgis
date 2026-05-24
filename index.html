@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebGIS Pesona Jawa Timur - Peta Sebaran Wisata</title>
+    
+    <!-- Bootstrap 5 CSS & JS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Leaflet Marker Cluster -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <!-- Font Awesome & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #ffd700;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Navbar styling */
+        .navbar {
+            background: linear-gradient(135deg, #1a472a 0%, #0d2818 100%);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            padding: 0.8rem 1.5rem;
+        }
+        
+        .navbar-brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: #ffd700 !important;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .navbar-brand i {
+            font-size: 1.5rem;
+            color: #ffd700;
+        }
+
+        @media (min-width: 769px) {
+            .navbar-brand {
+                position: relative;
+                left: 0;
+                transform: none;
+                font-size: 1.5rem;
+            }
+            
+            .navbar-brand i {
+                font-size: 1.6rem;
+            }
+        }
+        
+        .search-form {
+            width: 90%;
+            max-width: 380px;
+            position: relative;
+            z-index: 1001;
+        }
+        
+        .search-form .input-group {
+            height: 38px;
+            flex-wrap: nowrap;
+        }
+        
+        .search-input {
+            border-radius: 50px 0 0 50px !important;
+            border: none;
+            padding: 0 1.2rem;
+            font-size: 0.88rem;
+            height: 100%;
+            flex: 1 1 auto;
+            min-width: 0;
+            line-height: 1;
+        }
+        
+        .search-input:focus {
+            box-shadow: none;
+            outline: none;
+            border: none;
+        }
+        
+        .search-btn {
+            border-radius: 0 50px 50px 0 !important;
+            background: #ffd700;
+            color: #1a472a;
+            border: none;
+            padding: 0 1.1rem;
+            font-weight: 700;
+            font-size: 0.9rem;
+            height: 100%;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        
+        .search-btn:hover {
+            background: #ffed4a;
+            color: #1a472a;
+        }
+        
+        /* Autocomplete dropdown */
+        .autocomplete-dropdown {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+            z-index: 9999;
+            overflow: hidden;
+            max-height: 360px;
+            overflow-y: auto;
+            display: none;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+        
+        .dropdown-header {
+            padding: 0.4rem 0.9rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #9e9e9e;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .dropdown-item-custom {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0.55rem 0.9rem;
+            cursor: pointer;
+            transition: background 0.15s;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        
+        .dropdown-item-custom:last-child {
+            border-bottom: none;
+        }
+        
+        .dropdown-item-custom:hover,
+        .dropdown-item-custom.active {
+            background: #f0f9f3;
+        }
+        
+        .item-icon {
+            font-size: 1.3rem;
+            flex-shrink: 0;
+            width: 28px;
+            text-align: center;
+        }
+        
+        .item-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .item-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #1a2e1c;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .item-name mark {
+            background: #fff3b0;
+            border-radius: 3px;
+            padding: 0 1px;
+            font-weight: 700;
+            color: inherit;
+        }
+        
+        .item-meta {
+            font-size: 0.7rem;
+            color: #777;
+            margin-top: 1px;
+        }
+        
+        .item-badge {
+            font-size: 0.6rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            background: #1a472a;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        
+        .dropdown-empty {
+            padding: 1rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #9e9e9e;
+        }
+        
+        .main-container {
+            display: flex;
+            height: calc(100vh - 70px);
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 360px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 0rem 1.5rem;
+                padding-bottom: 10px;
+            }
+            .sidebar {
+                position: fixed;
+                left: 0;
+                right: 0;
+                top: 93px;
+                padding-bottom: 80px;
+                width: 100% !important;
+                max-width: 100%;
+                height: calc(100vh - 70px);
+                z-index: 1050;
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+                border-radius: 0;
+                box-shadow: none;
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .sidebar-toggle-mobile {
+                display: flex;
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 1100;
+                background: #1a472a;
+                color: white;
+                border: none;
+                border-radius: 50%;
+                width: 56px;
+                height: 56px;
+                font-size: 1.5rem;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .sidebar-toggle-mobile:active {
+                transform: scale(0.95);
+            }
+            
+            .sidebar-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1040;
+                display: none;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+            
+            .sidebar-overlay.show {
+                display: block;
+                opacity: 1;
+            }
+            
+            .sidebar-header {
+                border-radius: 0;
+            }
+            
+            .poi-list-container {
+                flex: 1;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .sidebar-toggle-mobile {
+                display: none;
+            }
+        }
+        
+        .sidebar-header {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
+            padding: 1rem;
+            border-bottom: 2px solid #ffd700;
+        }
+        
+        .sidebar-header h5 {
+            font-weight: 700;
+            color: #1a472a;
+            margin: 0;
+        }
+        
+        .sidebar-header p {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin: 0;
+        }
+        
+        .stats-row {
+            padding: 0.8rem 1rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .stat-card {
+            text-align: center;
+            background: white;
+            border-radius: 12px;
+            padding: 0.5rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        
+        .stat-number {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #1a472a;
+        }
+        
+        .stat-label {
+            font-size: 0.7rem;
+            color: #6c757d;
+        }
+        
+        .controls-panel {
+            padding: 0.8rem 1rem;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .filter-group, .sort-group {
+            margin-bottom: 0.8rem;
+        }
+        
+        .filter-group label, .sort-group label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 0.3rem;
+        }
+        
+        .form-select-sm, .form-control-sm {
+            font-size: 0.8rem;
+            border-radius: 20px;
+        }
+        
+        .btn-reset {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 0.3rem 0.8rem;
+            font-size: 0.7rem;
+            width: 100%;
+        }
+        
+        .poi-list-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.8rem;
+            background: #f8f9fa;
+        }
+        
+        .poi-card {
+            background: white;
+            border-radius: 12px;
+            padding: 0.8rem;
+            margin-bottom: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-left: 4px solid #ffd700;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        
+        .poi-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #fffef5;
+        }
+        
+        .poi-card.highlight {
+            background: #fff8e1;
+            border-left-color: #ff6f00;
+        }
+        
+        .poi-name {
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .poi-category-badge {
+            font-size: 0.6rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            background: #1a472a;
+            color: white;
+        }
+        
+        .poi-detail {
+            font-size: 0.7rem;
+            color: #6c757d;
+        }
+        
+        .poi-detail i {
+            width: 16px;
+            margin-right: 4px;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        
+        .modal-header-custom {
+            background: linear-gradient(135deg, #1a472a 0%, #0d2818 100%);
+            color: white;
+        }
+        
+        .marker-cluster-small div,
+        .marker-cluster-medium div,
+        .marker-cluster-large div {
+            background-color: rgba(26, 71, 42, 0.8);
+        }
+        
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+        }
+        
+        .footer-text {
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.65rem;
+            background: #e9ecef;
+            border-top: 1px solid #dee2e6;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div>Memuat data wisata Jawa Timur...</div>
+</div>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+            <i class="fas fa-map-marked-alt"></i>PESONA JAWA TIMUR
+        </a>
+        <div class="search-form ms-auto me-3">
+            <div class="input-group">
+                <input type="text" class="form-control search-input" id="searchInput" placeholder="Cari wisata..." autocomplete="off">
+                <button class="btn search-btn" id="searchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+        </div>
+        <div style="display:none;">
+          <span class="nav-text d-none d-md-block">
+            <i class="fas fa-layer-group"></i> <span id="totalDestinasi">0</span>+ Destinasi
+          </span>
+        </div>
+    </div>
+</nav>
+
+<div class="main-container">
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h5><i class="fas fa-list-ul me-2"></i>Daftar Destinasi Wisata</h5>
+            <p>Klik salah satu untuk melihat detail</p>
+        </div>
+        
+        <div class="stats-row">
+            <div class="row g-2">
+                <div class="col-4">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalCount">0</div>
+                        <div class="stat-label">Total POI</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="stat-card">
+                        <div class="stat-number" id="categoryCount">0</div>
+                        <div class="stat-label">Kategori</div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="stat-card">
+                        <div class="stat-number" id="visibleCount">0</div>
+                        <div class="stat-label">Tampil</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls-panel">
+            <div class="filter-group">
+                <label><i class="fas fa-filter me-1"></i>Filter Kategori</label>
+                <select id="categoryFilter" class="form-select form-select-sm">
+                    <option value="all">Semua Kategori</option>
+                </select>
+            </div>
+            <div class="sort-group">
+                <label><i class="fas fa-sort me-1"></i>Urutkan</label>
+                <select id="sortBy" class="form-select form-select-sm">
+                    <option value="name">Nama (A-Z)</option>
+                    <option value="nameDesc">Nama (Z-A)</option>
+                    <option value="category">Kategori</option>
+                    <option value="rating">Rating Tertinggi</option>
+                </select>
+            </div>
+            <button class="btn-reset" id="resetBtn">
+                <i class="fas fa-undo-alt me-1"></i>Reset Filter
+            </button>
+        </div>
+        
+        <div class="poi-list-container" id="poiList">
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin"></i> Memuat data...
+            </div>
+        </div>
+        
+        <div class="footer-text">
+            <i class="fas fa-map-marker-alt"></i> Klik marker atau item untuk detail
+        </div>
+    </div>
+    
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+</div>
+
+<button class="sidebar-toggle-mobile" id="mobileSidebarToggle">
+    <i class="fas fa-bars"></i>
+</button>
+
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header modal-header-custom">
+                <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Detail Destinasi</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Global variables
+    let map;
+    let markerCluster;
+    let allMarkers = [];
+    let wisataData = [];
+    let currentData = [];
+    let activeIndex = -1;
+    let categories = [];
+    
+    // Function to load GeoJSON data
+    async function loadGeoJSONData() {
+        try {
+            const response = await fetch('wisata_jatim.geojson');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const geojson = await response.json();
+            
+            // Convert GeoJSON features to our data format
+            wisataData = geojson.features.map(feature => ({
+                name: feature.properties.name,
+                category: feature.properties.category,
+                city: feature.properties.city,
+                desc: feature.properties.desc,
+                rating: feature.properties.rating,
+                coords: [feature.geometry.coordinates[1], feature.geometry.coordinates[0]], // [lat, lng]
+                image: feature.properties.image
+            }));
+            
+            currentData = [...wisataData];
+            
+            // Get unique categories
+            categories = [...new Set(wisataData.map(w => w.category))];
+            
+            // Populate category filter
+            const categoryFilter = document.getElementById('categoryFilter');
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categoryFilter.appendChild(option);
+            });
+            
+            // Update total destination count in navbar
+            document.getElementById('totalDestinasi').innerText = wisataData.length;
+            
+            // Hide loading overlay
+            document.getElementById('loadingOverlay').style.display = 'none';
+            
+            // Initialize map and render data
+            initMap();
+            renderMarkers(wisataData);
+            renderPOIList(wisataData);
+            
+            // Setup event listeners
+            setupEventListeners();
+            setupAutocomplete();
+            initMobileToggle();
+            
+        } catch (error) {
+            console.error('Error loading GeoJSON data:', error);
+            document.getElementById('loadingOverlay').innerHTML = `
+                <div style="color: red; text-align: center;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px;"></i>
+                    <p>Gagal memuat data wisata!</p>
+                    <p style="font-size: 14px;">Pastikan file wisata_jatim.geojson berada di folder yang sama.</p>
+                    <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; background: #ffd700; border: none; border-radius: 8px; cursor: pointer;">Muat Ulang</button>
+                </div>
+            `;
+        }
+    }
+    
+    function initMap() {
+        map = L.map('map').setView([-7.9, 112.5], 8);
+        
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+        
+        markerCluster = L.markerClusterGroup({
+            spiderfyOnMaxZoom: true,
+            showCoverageOnHover: false,
+            zoomToBoundsOnClick: true,
+            maxClusterRadius: 50,
+            disableClusteringAtZoom: 14
+        });
+        map.addLayer(markerCluster);
+    }
+    
+    function getMarkerIcon(category) {
+        const iconColors = {
+            "Alam": "#2e7d32",
+            "Pantai": "#0288d1",
+            "Sejarah": "#b5651e",
+            "Religi": "#9c27b0",
+            "Keluarga": "#ff5722",
+            "Wisata Urban": "#00acc1"
+        };
+        const color = iconColors[category] || "#4caf50";
+        
+        return L.divIcon({
+            html: `<div style="background:${color}; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.2);"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>`,
+            iconSize: [32, 32],
+            popupAnchor: [0, -16],
+            className: 'custom-marker'
+        });
+    }
+    
+    function renderMarkers(data) {
+        markerCluster.clearLayers();
+        allMarkers = [];
+        
+        const markers = [];
+        data.forEach(item => {
+            const icon = getMarkerIcon(item.category);
+            const marker = L.marker([item.coords[0], item.coords[1]], { icon })
+                .bindPopup(`
+                    <div style="min-width:200px">
+                        <strong style="font-size:1rem">${item.image || '📍'} ${item.name}</strong><br>
+                        <span style="color:#4caf50">🏷️ ${item.category}</span><br>
+                        📍 ${item.city}<br>
+                        ⭐ ${item.rating} / 5
+                    </div>
+                `);
+            marker.on('click', () => {
+                showDetailModal(item);
+                highlightListItem(item.name);
+                if (window.innerWidth <= 768) closeSidebar();
+            });
+            markers.push(marker);
+            allMarkers.push({ marker, data: item });
+        });
+        markerCluster.addLayers(markers);
+    }
+    
+    function renderPOIList(data) {
+        const container = document.getElementById('poiList');
+        document.getElementById('totalCount').innerText = wisataData.length;
+        document.getElementById('categoryCount').innerText = categories.length;
+        document.getElementById('visibleCount').innerText = data.length;
+        
+        if (data.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-4"><i class="fas fa-sad-tear"></i> Tidak ada wisata ditemukan</div>';
+            return;
+        }
+        
+        let html = '';
+        data.forEach(item => {
+            html += `
+                <div class="poi-card" data-name="${item.name.toLowerCase()}">
+                    <div class="poi-name">
+                        <span>${item.image || '📍'} ${item.name}</span>
+                        <span class="poi-category-badge">${item.category}</span>
+                    </div>
+                    <div class="poi-detail mt-1">
+                        <i class="fas fa-map-pin"></i> ${item.city}
+                    </div>
+                    <div class="poi-detail">
+                        <i class="fas fa-star text-warning"></i> ${item.rating} / 5
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        
+        document.querySelectorAll('.poi-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const name = card.getAttribute('data-name');
+                const item = currentData.find(d => d.name.toLowerCase() === name);
+                if (item) {
+                    showDetailModal(item);
+                    highlightListItem(item.name);
+                    map.flyTo([item.coords[0], item.coords[1]], 13);
+                    const markerObj = allMarkers.find(m => m.data.name === item.name);
+                    if (markerObj) {
+                        markerCluster.zoomToShowLayer(markerObj.marker, () => {
+                            markerObj.marker.openPopup();
+                        });
+                    }
+                    if (window.innerWidth <= 768) closeSidebar();
+                }
+            });
+        });
+    }
+    
+    function highlightListItem(name) {
+        document.querySelectorAll('.poi-card').forEach(card => card.classList.remove('highlight'));
+        const target = document.querySelector(`.poi-card[data-name="${name.toLowerCase()}"]`);
+        if (target) {
+            target.classList.add('highlight');
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+    
+    function showDetailModal(item) {
+        const modalBody = document.getElementById('modalBody');
+        modalBody.innerHTML = `
+            <div class="text-center mb-3">
+                <div style="font-size: 3rem;">${item.image || '📍'}</div>
+            </div>
+            <table class="table table-borderless">
+                <tr><td style="width: 100px;"><strong>Nama</strong></td><td>${item.name}</td></tr>
+                <tr><td><strong>Kategori</strong></td><td><span class="badge" style="background:#1a472a;">${item.category}</span></td></tr>
+                <tr><td><strong>Kota</strong></td><td>${item.city}</td></tr>
+                <tr><td><strong>Deskripsi</strong></td><td>${item.desc}</td></tr>
+                <tr><td><strong>Rating</strong></td><td>⭐ ${item.rating} / 5.0</td></tr>
+                <tr><td><strong>Koordinat</strong></td><td>${item.coords[0]}, ${item.coords[1]}</td></tr>
+            </table>
+        `;
+        new bootstrap.Modal(document.getElementById('detailModal')).show();
+    }
+    
+    function filterAndSort() {
+        let filtered = [...wisataData];
+        
+        const category = document.getElementById('categoryFilter').value;
+        if (category !== 'all') {
+            filtered = filtered.filter(item => item.category === category);
+        }
+        
+        const searchText = document.getElementById('searchInput').value.toLowerCase();
+        if (searchText) {
+            filtered = filtered.filter(item => 
+                item.name.toLowerCase().includes(searchText) || 
+                item.city.toLowerCase().includes(searchText) ||
+                item.category.toLowerCase().includes(searchText)
+            );
+        }
+        
+        const sortBy = document.getElementById('sortBy').value;
+        if (sortBy === 'name') {
+            filtered.sort((a,b) => a.name.localeCompare(b.name));
+        } else if (sortBy === 'nameDesc') {
+            filtered.sort((a,b) => b.name.localeCompare(a.name));
+        } else if (sortBy === 'category') {
+            filtered.sort((a,b) => a.category.localeCompare(b.category));
+        } else if (sortBy === 'rating') {
+            filtered.sort((a,b) => b.rating - a.rating);
+        }
+        
+        currentData = filtered;
+        renderPOIList(currentData);
+        renderMarkers(currentData);
+    }
+    
+    function resetFilters() {
+        document.getElementById('categoryFilter').value = 'all';
+        document.getElementById('sortBy').value = 'name';
+        document.getElementById('searchInput').value = '';
+        filterAndSort();
+        closeDropdown();
+    }
+    
+    function setupEventListeners() {
+        document.getElementById('categoryFilter').addEventListener('change', filterAndSort);
+        document.getElementById('sortBy').addEventListener('change', filterAndSort);
+        document.getElementById('resetBtn').addEventListener('click', resetFilters);
+        document.getElementById('searchBtn').addEventListener('click', filterAndSort);
+        document.getElementById('searchInput').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                closeDropdown();
+                filterAndSort();
+            }
+        });
+        
+        map.on('click', () => {
+            document.querySelectorAll('.poi-card').forEach(card => card.classList.remove('highlight'));
+        });
+    }
+    
+    // Autocomplete functions (same as before)
+    function highlightText(text, query) {
+        if (!query) return text;
+        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        return text.replace(regex, '<mark>$1</mark>');
+    }
+    
+    function getSearchSuggestions(query) {
+        if (!query || query.length < 1) return [];
+        
+        const lowerQuery = query.toLowerCase();
+        const suggestions = [];
+        
+        for (const item of wisataData) {
+            const nameMatch = item.name.toLowerCase().includes(lowerQuery);
+            const cityMatch = item.city.toLowerCase().includes(lowerQuery);
+            const categoryMatch = item.category.toLowerCase().includes(lowerQuery);
+            
+            if (nameMatch || cityMatch || categoryMatch) {
+                suggestions.push(item);
+            }
+            if (suggestions.length >= 8) break;
+        }
+        
+        return suggestions;
+    }
+    
+    function renderDropdown(suggestions, query) {
+        const dropdown = document.getElementById('autocompleteDropdown');
+        
+        if (!suggestions.length) {
+            dropdown.innerHTML = `<div class="dropdown-empty"><i class="fas fa-search"></i> Tidak ada hasil untuk "${query}"</div>`;
+            dropdown.classList.add('show');
+            return;
+        }
+        
+        let html = `<div class="dropdown-header"><i class="fas fa-lightbulb"></i> Rekomendasi Wisata</div>`;
+        
+        suggestions.forEach((item, idx) => {
+            const highlightedName = highlightText(item.name, query);
+            html += `
+                <div class="dropdown-item-custom" data-index="${idx}" data-name="${item.name}">
+                    <div class="item-icon">${item.image || '📍'}</div>
+                    <div class="item-info">
+                        <div class="item-name">${highlightedName}</div>
+                        <div class="item-meta">
+                            <i class="fas fa-map-pin"></i> ${item.city} | 
+                            <i class="fas fa-star text-warning"></i> ${item.rating}
+                        </div>
+                    </div>
+                    <div class="item-badge">${item.category}</div>
+                </div>
+            `;
+        });
+        
+        dropdown.innerHTML = html;
+        dropdown.classList.add('show');
+        
+        document.querySelectorAll('.dropdown-item-custom').forEach(el => {
+            el.addEventListener('click', () => {
+                const name = el.getAttribute('data-name');
+                document.getElementById('searchInput').value = name;
+                closeDropdown();
+                filterAndSort();
+                
+                const selectedItem = wisataData.find(w => w.name === name);
+                if (selectedItem) {
+                    map.flyTo([selectedItem.coords[0], selectedItem.coords[1]], 13);
+                    showDetailModal(selectedItem);
+                }
+            });
+        });
+    }
+    
+    function closeDropdown() {
+        const dropdown = document.getElementById('autocompleteDropdown');
+        dropdown.classList.remove('show');
+        activeIndex = -1;
+    }
+    
+    function setupAutocomplete() {
+        const input = document.getElementById('searchInput');
+        
+        input.addEventListener('input', function(e) {
+            const query = this.value.trim();
+            if (query.length >= 1) {
+                const suggestions = getSearchSuggestions(query);
+                renderDropdown(suggestions, query);
+            } else {
+                closeDropdown();
+            }
+        });
+        
+        input.addEventListener('keydown', function(e) {
+            const items = document.querySelectorAll('.dropdown-item-custom');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    activeIndex = (activeIndex + 1) % items.length;
+                    updateActiveItem(items);
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    activeIndex = (activeIndex - 1 + items.length) % items.length;
+                    updateActiveItem(items);
+                }
+            } else if (e.key === 'Enter' && activeIndex >= 0 && items[activeIndex]) {
+                e.preventDefault();
+                const name = items[activeIndex].getAttribute('data-name');
+                document.getElementById('searchInput').value = name;
+                closeDropdown();
+                filterAndSort();
+                
+                const selectedItem = wisataData.find(w => w.name === name);
+                if (selectedItem) {
+                    map.flyTo([selectedItem.coords[0], selectedItem.coords[1]], 13);
+                    showDetailModal(selectedItem);
+                }
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+        
+        function updateActiveItem(items) {
+            items.forEach((item, idx) => {
+                if (idx === activeIndex) {
+                    item.classList.add('active');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+        
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('autocompleteDropdown');
+            if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                closeDropdown();
+            }
+        });
+    }
+    
+    let overlay = null;
+    
+    function initMobileToggle() {
+        const toggleBtn = document.getElementById('mobileSidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        overlay = document.createElement('div');
+        overlay.className = 'sidebar-overlay';
+        document.body.appendChild(overlay);
+        
+        function openSidebar() {
+            sidebar.classList.add('show');
+            overlay.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeSidebar() {
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+        
+        function toggleSidebar() {
+            if (sidebar.classList.contains('show')) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        }
+        
+        toggleBtn.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', closeSidebar);
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && sidebar.classList.contains('show')) {
+                closeSidebar();
+            }
+        });
+        
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768 && sidebar.classList.contains('show')) {
+                closeSidebar();
+            }
+        });
+        
+        window.closeSidebar = closeSidebar;
+    }
+    
+    function closeSidebar() {
+        if (window.closeSidebar) window.closeSidebar();
+    }
+    
+    // Start the application
+    loadGeoJSONData();
+</script>
+</body>
+</html>
