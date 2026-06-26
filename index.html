@@ -648,7 +648,7 @@
     // Function to load GeoJSON data
     async function loadGeoJSONData() {
         try {
-            const response = await fetch('wisata_jatim.geojson');
+            const response = await fetch('wisata.geojson');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
